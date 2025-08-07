@@ -27,6 +27,6 @@
 ### 📦 Installation
 
 ```bash
-git clone https://github.com/yourusername/CyberAI.git
+git clone https://github.com/RadoGold57/CyberAI.git
 cd CyberAI
 pip install -r requirements.txt
