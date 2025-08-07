@@ -1,25 +1,26 @@
 import httpx
 
-def find_graphql(urls):
-    print("[+] Checking for GraphQL endpoints...")
-    findings = []
-    checked = set()
+GRAPHQL_ENDPOINTS = [
+    "/graphql", "/api/graphql", "/gql", "/graphiql"
+]
 
-    for url in urls:
-        for endpoint in ["/graphql", "/api/graphql"]:
-            if url.endswith(endpoint) or endpoint in url:
-                try:
-                    if url in checked:
-                        continue
-                    r = httpx.post(url, json={"query": "{__typename}"}, timeout=10)
-                    if "data" in r.text or "__typename" in r.text:
-                        findings.append({
-                            "url": url,
-                            "type": "GraphQL Introspection Enabled",
-                            "payload": "{__typename}",
-                            "evidence": "GraphQL response received"
-                        })
-                        checked.add(url)
-                except Exception:
-                    pass
+def find_graphql(urls):
+    findings = []
+    roots = set()
+    for u in urls:
+        roots.add(u.split("/")[0] + "//" + u.split("/")[2])
+    client = httpx.Client(follow_redirects=True, timeout=8)
+    for root in roots:
+        for endpoint in GRAPHQL_ENDPOINTS:
+            target = root + endpoint
+            try:
+                r = client.post(target, json={"query": "{__typename}"})
+                if r.status_code == 200 and "__typename" in r.text:
+                    findings.append({
+                        "type": "GraphQL Endpoint",
+                        "url": target
+                    })
+            except:
+                pass
+    client.close()
     return findings
