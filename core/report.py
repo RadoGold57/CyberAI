@@ -18,18 +18,33 @@ def write_markdown_report(findings, target):
     print(f"[+] Report written to {fname}")
 
 
-def save_json_report(findings, target):
-    output_path = Path("results") / f"{target.replace('.', '_')}_report.json"
-    formatted = []
+def save_burp_json(findings, target):
+    """
+    Save findings in Burp-compatible JSON format.
+    """
+    # Ensure results directory exists
+    results_dir = Path("results")
+    results_dir.mkdir(exist_ok=True)
 
+    # Remove protocol and any non-alphanumeric characters from target
+    safe_target = target.replace("http://", "").replace("https://", "").replace("/", "_")
+    safe_target = safe_target.replace(":", "_").replace(".", "_")
+
+    output_path = results_dir / f"{safe_target}_burp.json"
+
+    # Burp format is usually an array of issues
+    burp_issues = []
     for f in findings:
-        formatted.append({
+        burp_issues.append({
+            "type": f.get("type", ""),
             "host": target,
-            "url": f.get("url", ""),
-            "issue": f.get("type", ""),
-            "payload": f.get("payload", ""),
-            "evidence": f.get("evidence", ""),
+            "path": f.get("url", ""),
+            "confidence": "Firm",
+            "severity": "High",
+            "request": f.get("payload", ""),
+            "response": f.get("evidence", "")
         })
 
-    output_path.write_text(json.dumps(formatted, indent=2))
-    print(f"[+] JSON report saved: {output_path}")
+    output_path.write_text(json.dumps(burp_issues, indent=2))
+    print(f"[+] Burp JSON report saved: {output_path}")
+

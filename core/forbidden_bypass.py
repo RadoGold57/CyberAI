@@ -8,24 +8,30 @@ BYPASS_HEADERS = [
     {"X-Host": "localhost"}
 ]
 
-def check_403_bypass(urls):
+async def check_forbidden_bypass(target, paths=None):
+    """
+    target: base URL (e.g. https://example.com)
+    paths: list of paths to test (default: ['/'])
+    """
     findings = []
-    client = httpx.Client(follow_redirects=True, timeout=8)
-    for url in urls:
-        try:
-            r = client.get(url)
-            if r.status_code == 403:
-                for headers in BYPASS_HEADERS:
-                    rb = client.get(url, headers=headers)
-                    if rb.status_code in [200, 401]:
-                        findings.append({
-                            "type": "403 Bypass",
-                            "url": url,
-                            "header": headers,
-                            "status": rb.status_code
-                        })
-        except:
-            pass
-    client.close()
-    return findings
+    if paths is None:
+        paths = ["/"]
 
+    async with httpx.AsyncClient(follow_redirects=True, timeout=8) as client:
+        for path in paths:
+            url = target.rstrip("/") + path
+            try:
+                r = await client.get(url)
+                if r.status_code == 403:
+                    for headers in BYPASS_HEADERS:
+                        rb = await client.get(url, headers=headers)
+                        if rb.status_code in (200, 401):
+                            findings.append({
+                                "type": "403 Bypass",
+                                "url": url,
+                                "header": headers,
+                                "status": rb.status_code
+                            })
+            except httpx.RequestError as e:
+                print(f"[!] Request to {url} failed: {e}")
+    return findings

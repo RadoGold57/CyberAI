@@ -1,26 +1,35 @@
+# core/graphql_finder.py
 import httpx
 
-GRAPHQL_ENDPOINTS = [
-    "/graphql", "/api/graphql", "/gql", "/graphiql"
+COMMON_GRAPHQL_PATHS = [
+    "/graphql",
+    "/api/graphql",
+    "/graphiql",
+    "/graphql/console"
 ]
 
-def find_graphql(urls):
+async def scan_graphql(base_url):
     findings = []
-    roots = set()
-    for u in urls:
-        roots.add(u.split("/")[0] + "//" + u.split("/")[2])
-    client = httpx.Client(follow_redirects=True, timeout=8)
-    for root in roots:
-        for endpoint in GRAPHQL_ENDPOINTS:
-            target = root + endpoint
+    if not base_url.startswith("http"):
+        base_url = "https://" + base_url
+    async with httpx.AsyncClient(follow_redirects=True, timeout=8) as client:
+        for path in COMMON_GRAPHQL_PATHS:
+            url = base_url.rstrip("/") + path
             try:
-                r = client.post(target, json={"query": "{__typename}"})
-                if r.status_code == 200 and "__typename" in r.text:
+                r = await client.post(url, json={"query": "{ __typename }"})
+                if r.status_code == 200 and "data" in r.text:
                     findings.append({
                         "type": "GraphQL Endpoint",
-                        "url": target
+                        "url": url,
+                        "status": r.status_code,
+                        "response": r.text[:200]  # limit preview
                     })
-            except:
+                elif r.status_code in [200, 400] and "errors" in r.text.lower():
+                    findings.append({
+                        "type": "GraphQL Endpoint (error)",
+                        "url": url,
+                        "status": r.status_code
+                    })
+            except Exception:
                 pass
-    client.close()
     return findings
