@@ -1,1 +1,8 @@
+fastapi
+uvicorn
 httpx
+beautifulsoup4
+lxml
+aiofiles
+redis
+rq

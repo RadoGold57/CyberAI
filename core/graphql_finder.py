@@ -1,25 +1,35 @@
+# core/graphql_finder.py
 import httpx
 
-def find_graphql(urls):
-    print("[+] Checking for GraphQL endpoints...")
-    findings = []
-    checked = set()
+COMMON_GRAPHQL_PATHS = [
+    "/graphql",
+    "/api/graphql",
+    "/graphiql",
+    "/graphql/console"
+]
 
-    for url in urls:
-        for endpoint in ["/graphql", "/api/graphql"]:
-            if url.endswith(endpoint) or endpoint in url:
-                try:
-                    if url in checked:
-                        continue
-                    r = httpx.post(url, json={"query": "{__typename}"}, timeout=10)
-                    if "data" in r.text or "__typename" in r.text:
-                        findings.append({
-                            "url": url,
-                            "type": "GraphQL Introspection Enabled",
-                            "payload": "{__typename}",
-                            "evidence": "GraphQL response received"
-                        })
-                        checked.add(url)
-                except Exception:
-                    pass
+async def scan_graphql(base_url):
+    findings = []
+    if not base_url.startswith("http"):
+        base_url = "https://" + base_url
+    async with httpx.AsyncClient(follow_redirects=True, timeout=8) as client:
+        for path in COMMON_GRAPHQL_PATHS:
+            url = base_url.rstrip("/") + path
+            try:
+                r = await client.post(url, json={"query": "{ __typename }"})
+                if r.status_code == 200 and "data" in r.text:
+                    findings.append({
+                        "type": "GraphQL Endpoint",
+                        "url": url,
+                        "status": r.status_code,
+                        "response": r.text[:200]  # limit preview
+                    })
+                elif r.status_code in [200, 400] and "errors" in r.text.lower():
+                    findings.append({
+                        "type": "GraphQL Endpoint (error)",
+                        "url": url,
+                        "status": r.status_code
+                    })
+            except Exception:
+                pass
     return findings
